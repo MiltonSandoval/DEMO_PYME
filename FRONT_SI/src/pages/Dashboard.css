@@ -1,0 +1,278 @@
+/* ============================================================
+   Dashboard — Estilos específicos
+   (Las clases globales .card, .badge, .table-container, .grid-4,
+    .metric-card, .loading-screen etc. vienen de index.css)
+   ============================================================ */
+
+.dashboard-page {
+  animation: slideInLeft 0.3s ease;
+}
+
+/* ── Stats Grid (8 cards) ─────────────────────────────────── */
+.dash-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.dash-stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: all var(--transition-base);
+  cursor: default;
+}
+
+.dash-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-light);
+}
+
+.dash-stat-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-stat-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.dash-stat-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 3px;
+}
+
+.dash-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-stat-sub {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  color: var(--success);
+  margin-top: 2px;
+}
+
+.dash-stat-down {
+  color: var(--danger);
+}
+
+/* ── Charts Row 1: Línea + Dona ──────────────────────────── */
+.dashboard-charts {
+  display: grid;
+  grid-template-columns: 1.65fr 1fr;
+  gap: 20px;
+}
+
+/* ── Charts Row 2: Barras + Top Productos + Stock ────────── */
+.dashboard-charts-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.chart-wrapper {
+  position: relative;
+  height: 270px;
+  flex: 1;
+}
+
+.donut-wrapper {
+  height: 250px;
+}
+
+/* ── Top Productos ────────────────────────────────────────── */
+.dash-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.dash-top-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dash-top-item:last-child {
+  border-bottom: none;
+}
+
+.dash-top-rank {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.dash-top-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-top-name {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dash-top-cat {
+  margin-top: 1px;
+}
+
+.dash-top-sales {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.dash-top-qty {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dash-top-rev {
+  margin-top: 1px;
+}
+
+/* ── Stock Alerts ─────────────────────────────────────────── */
+.dash-alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-alert-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--warning);
+  transition: all var(--transition-fast);
+}
+
+.dash-alert-item:hover {
+  background: var(--bg-hover);
+}
+
+.dash-alert-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.dash-alert-name {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dash-alert-cat {
+  margin-top: 1px;
+}
+
+/* ── Refresh spin ─────────────────────────────────────────── */
+.dash-spin {
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .dash-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .dashboard-charts-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dashboard-charts-3 > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dash-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-charts-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dashboard-charts-3 > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .dash-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-charts-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-charts-3 > :first-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .dash-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
