@@ -57,12 +57,13 @@ export default function Proveedores() {
       </div>
       <div className="table-container">
         <table>
-          <thead><tr><th>Nombre</th><th>Contacto</th><th>Teléfono</th><th>Email</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Contacto</th><th>Teléfono</th><th>Email</th><th>Dirección</th><th>Acciones</th></tr></thead>
           <tbody>
             {filtered.map(p=>(
               <tr key={p.id}>
                 <td><strong>{p.nombre}</strong></td><td>{p.contacto||'—'}</td><td>{p.telefono||'—'}</td>
                 <td className="text-muted">{p.email||'—'}</td>
+                <td>{p.direccion||'—'}</td>
                 <td><div className="flex gap-sm">
                   {tienePermiso('Proveedores','Editar') && <button className="btn btn-ghost btn-sm" onClick={()=>openEdit(p)}><Edit2 size={14}/></button>}
                   {tienePermiso('Proveedores','Eliminar') && <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={()=>{setSelected(p);setShowConfirm(true);}}><Trash2 size={14}/></button>}

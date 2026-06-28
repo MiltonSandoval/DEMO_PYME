@@ -25,9 +25,19 @@ export default function Ventas() {
 
   const filtered = items.filter(v =>
     v.id?.toString().includes(busqueda) ||
-    v.clienteNombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    v.trabajadorNombre?.toLowerCase().includes(busqueda.toLowerCase())
+    (v.cliente || v.clienteNombre)?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    (v.trabajador || v.trabajadorNombre)?.toLowerCase().includes(busqueda.toLowerCase())
   );
+
+  const handleShowDetail = async (item) => {
+    try {
+      const res = await api.get(`/venta/${item.id}`);
+      setSelected(res.data);
+      setShowDetail(true);
+    } catch {
+      toast.error('Error al cargar detalles de la venta');
+    }
+  };
 
   const handleAnular = async () => {
     try {
@@ -71,7 +81,7 @@ export default function Ventas() {
                 <td style={{fontWeight:700, color:'var(--yellow-400)'}}>${(v.total || v.totalUSD)?.toFixed(2)}</td>
                 <td><span className={`badge ${estadoColor(v.estado)}`}>{v.estado}</span></td>
                 <td><div className="flex gap-sm">
-                  <button className="btn btn-ghost btn-sm" onClick={()=>{setSelected(v);setShowDetail(true);}}><Eye size={14}/></button>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>handleShowDetail(v)}><Eye size={14}/></button>
                   {tienePermiso('Ventas','Eliminar') && v.estado !== 'Anulada' && v.estado !== 'cancelada' && (
                     <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={()=>{setSelected(v);setShowConfirm(true);}}><XCircle size={14}/></button>
                   )}

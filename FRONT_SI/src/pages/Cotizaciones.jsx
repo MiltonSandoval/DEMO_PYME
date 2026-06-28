@@ -40,7 +40,7 @@ export default function Cotizaciones() {
       if (existing) {
         return {...prev, detalles: prev.detalles.map(d => d.productoId === prod.id ? {...d, cantidad: d.cantidad + 1} : d)};
       }
-      return {...prev, detalles: [...prev.detalles, { productoId: prod.id, nombre: prod.nombre, precioUnitarioUSD: prod.precioVentaUSD, cantidad: 1 }]};
+      return {...prev, detalles: [...prev.detalles, { productoId: prod.id, nombre: prod.nombre, precioUnitarioUSD: prod.precioVenta || prod.precioVentaUSD || 0, cantidad: 1 }]};
     });
   };
 
@@ -48,7 +48,7 @@ export default function Cotizaciones() {
     setForm(prev => ({...prev, detalles: prev.detalles.filter(d => d.productoId !== prodId)}));
   };
 
-  const totalCotizacion = form.detalles.reduce((s, d) => s + d.precioUnitarioUSD * d.cantidad, 0);
+  const totalCotizacion = form.detalles.reduce((s, d) => s + (d.precioUnitarioUSD || 0) * d.cantidad, 0);
 
   const handleSave = async () => {
     if (!form.clienteNombre.trim()) { toast.error('El nombre del cliente es requerido'); return; }
@@ -144,7 +144,7 @@ export default function Cotizaciones() {
           <div style={{ maxHeight: 150, overflowY: 'auto', marginBottom: 12 }}>
             {filteredProds.slice(0, 10).map(p => (
               <div key={p.id} className="cliente-option" onClick={() => addDetalle(p)}>
-                <span>{p.nombre}</span><span className="text-muted text-sm">${p.precioVentaUSD?.toFixed(2)}</span>
+                <span>{p.nombre}</span><span className="text-muted text-sm">${(p.precioVenta || p.precioVentaUSD || 0).toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -159,8 +159,8 @@ export default function Cotizaciones() {
                       <td>{d.nombre}</td>
                       <td><input type="number" min="1" style={{width:50,padding:'4px',background:'var(--bg-input)',border:'1px solid var(--border-color)',borderRadius:4,color:'var(--text-primary)',textAlign:'center'}}
                         value={d.cantidad} onChange={e=>setForm(prev=>({...prev,detalles:prev.detalles.map(x=>x.productoId===d.productoId?{...x,cantidad:Number(e.target.value)||1}:x)}))}/></td>
-                      <td>${d.precioUnitarioUSD.toFixed(2)}</td>
-                      <td style={{fontWeight:600}}>${(d.precioUnitarioUSD*d.cantidad).toFixed(2)}</td>
+                      <td>${(d.precioUnitarioUSD || 0).toFixed(2)}</td>
+                      <td style={{fontWeight:600}}>${((d.precioUnitarioUSD || 0) * d.cantidad).toFixed(2)}</td>
                       <td><button className="btn-ghost btn-icon" onClick={()=>removeDetalle(d.productoId)}><Trash2 size={14} color="var(--danger)"/></button></td>
                     </tr>
                   ))}

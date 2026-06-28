@@ -15,7 +15,7 @@ export default function Productos() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
-    nombre: '', descripcion: '', codigoBarras: '', precioCompraUSD: 0,
+    nombre: '', codigoBarras: '', precioCompraUSD: 0,
     precioVentaUSD: 0, stock: 0, stockMinimo: 5, categoriaId: '', activo: true,
     unidad: 'und'
   });
@@ -41,7 +41,7 @@ export default function Productos() {
 
   const openCreate = () => {
     setSelected(null);
-    setForm({ nombre: '', descripcion: '', codigoBarras: '', precioCompraUSD: 0,
+    setForm({ nombre: '', codigoBarras: '', precioCompraUSD: 0,
       precioVentaUSD: 0, stock: 0, stockMinimo: 5, categoriaId: categorias[0]?.id || '', activo: true, unidad: 'und' });
     setShowModal(true);
   };
@@ -49,7 +49,7 @@ export default function Productos() {
   const openEdit = (item) => {
     setSelected(item);
     setForm({
-      nombre: item.nombre || '', descripcion: item.descripcion || '',
+      nombre: item.nombre || '',
       codigoBarras: item.codigo || item.codigoBarras || '', precioCompraUSD: item.precioCompra || item.precioCompraUSD || 0,
       precioVentaUSD: item.precioVenta || item.precioVentaUSD || 0, stock: item.stock || 0,
       stockMinimo: item.stockMinimo || 5, categoriaId: item.idCategoria || item.categoriaId || '',
@@ -72,7 +72,6 @@ export default function Productos() {
         stockMinimo: Number(form.stockMinimo),
         estado: form.activo ? 'activo' : 'inactivo',
         unidad: form.unidad || 'und',
-        descripcion: form.descripcion || '',
       };
       if (selected) {
         await api.put(`/producto/${selected.id}`, body);
@@ -166,9 +165,6 @@ export default function Productos() {
             <input className="form-control" value={form.codigoBarras}
               onChange={e => setForm({...form, codigoBarras: e.target.value})} /></div>
         </div>
-        <div className="form-group"><label>Descripción</label>
-          <textarea className="form-control" rows={2} value={form.descripcion}
-            onChange={e => setForm({...form, descripcion: e.target.value})} /></div>
         <div className="grid-3">
           <div className="form-group"><label>Categoría</label>
             <select className="form-control" value={form.categoriaId}

@@ -72,6 +72,16 @@ export default function Compras() {
     } catch (err) { toast.error(err.response?.data?.message || 'Error al guardar'); }
   };
 
+  const handleShowDetail = async (item) => {
+    try {
+      const res = await api.get(`/compra/${item.id}`);
+      setSelected(res.data);
+      setShowDetail(true);
+    } catch {
+      toast.error('Error al cargar detalles de la compra');
+    }
+  };
+
   const filteredProds = productos.filter(p => p.nombre?.toLowerCase().includes(prodBusqueda.toLowerCase()));
 
   if (loading) return <div className="loading-screen"><div className="spinner"/><span>Cargando...</span></div>;
@@ -96,7 +106,7 @@ export default function Compras() {
                 <td className="text-sm">{new Date(c.fecha || c.creadoEn).toLocaleDateString('es-BO')}</td>
                 <td>{c.proveedor || c.proveedorNombre || '—'}</td>
                 <td style={{fontWeight:700,color:'var(--yellow-400)'}}>${(c.total || c.totalUSD)?.toFixed(2)}</td>
-                <td><button className="btn btn-ghost btn-sm" onClick={()=>{setSelected(c);setShowDetail(true);}}><Eye size={14}/></button></td>
+                <td><button className="btn btn-ghost btn-sm" onClick={()=>handleShowDetail(c)}><Eye size={14}/></button></td>
               </tr>
             ))}
           </tbody>

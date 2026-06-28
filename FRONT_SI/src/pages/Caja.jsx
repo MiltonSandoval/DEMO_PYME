@@ -15,7 +15,12 @@ export default function Caja() {
   });
   const [observacion, setObservacion] = useState('');
   const [loading, setLoading] = useState(true);
+  const [expandedNotas, setExpandedNotas] = useState({});
   const toast = useToast();
+
+  const toggleNota = (id) => {
+    setExpandedNotas(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => { loadData(); }, []);
 
@@ -120,18 +125,72 @@ export default function Caja() {
       {/* History */}
       <div className="table-container">
         <table>
-          <thead><tr><th>#</th><th>Apertura</th><th>Cierre</th><th>Monto Inicial</th><th>Monto Cierre</th><th>Estado</th></tr></thead>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Cajero</th>
+              <th>Apertura</th>
+              <th>Cierre</th>
+              <th>Monto Inicial</th>
+              <th>Monto Esperado</th>
+              <th>Monto Cierre</th>
+              <th>Diferencia</th>
+              <th>Estado</th>
+              <th>Observaciones</th>
+            </tr>
+          </thead>
           <tbody>
-            {sesiones.map(s=>(
-              <tr key={s.id}>
-                <td><strong>#{s.id}</strong></td>
-                <td className="text-sm">{new Date(s.fechaApertura).toLocaleString('es-BO')}</td>
-                <td className="text-sm">{s.fechaCierre ? new Date(s.fechaCierre).toLocaleString('es-BO') : '—'}</td>
-                <td>Bs {s.montoApertura?.toFixed(2)}</td>
-                <td>{s.montoCierre ? `Bs ${s.montoCierre.toFixed(2)}` : '—'}</td>
-                <td><span className={`badge ${s.estado==='abierta'?'badge-success':'badge-info'}`}>{s.estado}</span></td>
-              </tr>
-            ))}
+            {sesiones.map(s => {
+              const diff = s.diferencia || 0;
+              return (
+                <tr key={s.id}>
+                  <td><strong>#{s.id}</strong></td>
+                  <td className="text-sm">{s.trabajador || '—'}</td>
+                  <td className="text-sm">{new Date(s.fechaApertura).toLocaleString('es-BO')}</td>
+                  <td className="text-sm">{s.fechaCierre ? new Date(s.fechaCierre).toLocaleString('es-BO') : '—'}</td>
+                  <td>Bs {s.montoApertura?.toFixed(2)}</td>
+                  <td>{s.montoEsperado != null ? `Bs ${s.montoEsperado.toFixed(2)}` : '—'}</td>
+                  <td>{s.montoCierre != null ? `Bs ${s.montoCierre.toFixed(2)}` : '—'}</td>
+                  <td>
+                    {s.estado === 'abierta' ? (
+                      <span className="text-muted">—</span>
+                    ) : diff === 0 ? (
+                      <span className="text-muted" style={{ fontWeight: 600 }}>Bs 0.00</span>
+                    ) : (
+                      <span style={{ color: diff > 0 ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
+                        {diff > 0 ? '+' : ''}Bs {diff.toFixed(2)}
+                      </span>
+                    )}
+                  </td>
+                  <td><span className={`badge ${s.estado==='abierta'?'badge-success':'badge-info'}`}>{s.estado}</span></td>
+                  <td
+                    className="text-sm text-muted"
+                    style={{
+                      maxWidth: '200px',
+                      cursor: s.notas ? 'pointer' : 'default',
+                      whiteSpace: expandedNotas[s.id] ? 'normal' : 'nowrap',
+                      overflow: expandedNotas[s.id] ? 'visible' : 'hidden',
+                      textOverflow: expandedNotas[s.id] ? 'unset' : 'ellipsis',
+                      wordBreak: 'break-word',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onClick={() => s.notas && toggleNota(s.id)}
+                    title={s.notas && !expandedNotas[s.id] ? "Haz clic para ver completo" : ""}
+                  >
+                    {s.notas ? (
+                      <>
+                        {s.notas}
+                        {!expandedNotas[s.id] && s.notas.length > 25 && (
+                          <span style={{ color: 'var(--color-primary, #3b82f6)', marginLeft: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
+                            (ver más)
+                          </span>
+                        )}
+                      </>
+                    ) : '—'}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

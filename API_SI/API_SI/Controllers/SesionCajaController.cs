@@ -67,11 +67,11 @@ namespace API_SI.Controllers
 
             // Calcular ingresos en efectivo actuales acumulados
             var totalEfectivoVentas = await _context.Ventas
-                .Where(v => v.IdTrabajador == idTrabajador && v.Estado == "completada" && v.Fecha >= sesion.FechaApertura && v.MetodoPago.Clave == "efectivo")
+                .Where(v => v.IdTrabajador == idTrabajador && v.Estado.ToLower() == "completada" && v.Fecha >= sesion.FechaApertura && v.MetodoPago.Clave.ToLower() == "efectivo")
                 .SumAsync(v => (decimal?)v.Total) ?? 0;
 
             var totalReembolsosEfectivo = await _context.Devoluciones
-                .Where(d => d.IdTrabajador == idTrabajador && d.Estado == "procesada" && d.Fecha >= sesion.FechaApertura && d.MetodoReembolso == "efectivo")
+                .Where(d => d.IdTrabajador == idTrabajador && d.Estado.ToLower() == "procesada" && d.Fecha >= sesion.FechaApertura && d.MetodoReembolso.ToLower() == "efectivo")
                 .SumAsync(d => (decimal?)d.Total) ?? 0;
 
             decimal esperadoActual = sesion.MontoApertura + totalEfectivoVentas - totalReembolsosEfectivo;
@@ -137,11 +137,11 @@ namespace API_SI.Controllers
 
             // Calcular ingresos en efectivo acumulados durante la sesión
             var totalEfectivoVentas = await _context.Ventas
-                .Where(v => v.IdTrabajador == sesion.IdTrabajador && v.Estado == "completada" && v.Fecha >= sesion.FechaApertura && v.MetodoPago.Clave == "efectivo")
+                .Where(v => v.IdTrabajador == sesion.IdTrabajador && v.Estado.ToLower() == "completada" && v.Fecha >= sesion.FechaApertura && v.MetodoPago.Clave.ToLower() == "efectivo")
                 .SumAsync(v => (decimal?)v.Total) ?? 0;
 
             var totalReembolsosEfectivo = await _context.Devoluciones
-                .Where(d => d.IdTrabajador == sesion.IdTrabajador && d.Estado == "procesada" && d.Fecha >= sesion.FechaApertura && d.MetodoReembolso == "efectivo")
+                .Where(d => d.IdTrabajador == sesion.IdTrabajador && d.Estado.ToLower() == "procesada" && d.Fecha >= sesion.FechaApertura && d.MetodoReembolso.ToLower() == "efectivo")
                 .SumAsync(d => (decimal?)d.Total) ?? 0;
 
             decimal esperado = sesion.MontoApertura + totalEfectivoVentas - totalReembolsosEfectivo;

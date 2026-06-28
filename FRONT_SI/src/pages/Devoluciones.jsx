@@ -11,6 +11,8 @@ export default function Devoluciones() {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ ventaId: '', productoId: '', cantidad: 1, motivo: '', tipo: 'Devolucion' });
+  const [ventaProductos, setVentaProductos] = useState([]);
+  const [cargandoVenta, setCargandoVenta] = useState(false);
   const { tienePermiso } = useAuth();
   const toast = useToast();
 
@@ -26,6 +28,30 @@ export default function Devoluciones() {
     d.id?.toString().includes(busqueda)
   );
 
+  const handleCargarVenta = async (ventaId) => {
+    if (!ventaId) {
+      setVentaProductos([]);
+      return;
+    }
+    try {
+      setCargandoVenta(true);
+      const res = await api.get(`/venta/${ventaId}`);
+      const detalles = res.data.detalles || [];
+      setVentaProductos(detalles);
+      if (detalles.length > 0) {
+        const firstProdId = detalles[0].productoId || detalles[0].producto?.id;
+        setForm(prev => ({ ...prev, productoId: firstProdId }));
+      } else {
+        toast.warning('Esta venta no tiene productos registrados');
+      }
+    } catch {
+      setVentaProductos([]);
+      toast.error('No se pudo encontrar la venta con ese ID');
+    } finally {
+      setCargandoVenta(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.ventaId || !form.productoId) { toast.error('Complete los campos requeridos'); return; }
     try {
@@ -37,6 +63,11 @@ export default function Devoluciones() {
       const detalleOriginal = venta.detalles?.find(d => d.productoId === Number(form.productoId) || d.producto?.id === Number(form.productoId));
       if (!detalleOriginal) {
         toast.error('El producto no pertenece a la venta original');
+        return;
+      }
+
+      if (Number(form.cantidad) > detalleOriginal.cantidad) {
+        toast.error(`La cantidad a devolver (${form.cantidad}) no puede ser mayor a la cantidad vendida (${detalleOriginal.cantidad})`);
         return;
       }
       
@@ -60,6 +91,7 @@ export default function Devoluciones() {
       toast.success('Devolución registrada');
       setShowModal(false);
       setForm({ ventaId: '', productoId: '', cantidad: 1, motivo: '', tipo: 'Devolucion' });
+      setVentaProductos([]);
       loadData();
     } catch (err) { toast.error(err.response?.data?.message || 'Error al registrar'); }
   };
@@ -73,7 +105,7 @@ export default function Devoluciones() {
         <div className="flex gap-sm">
           <div className="search-bar"><Search size={16} className="search-icon"/>
             <input className="form-control" placeholder="Buscar..." value={busqueda} onChange={e=>setBusqueda(e.target.value)}/></div>
-          {tienePermiso('Devoluciones','Crear') && <button className="btn btn-fire" onClick={()=>setShowModal(true)}><Plus size={16}/> Nueva</button>}
+          {tienePermiso('Devoluciones','Crear') && <button className="btn btn-fire" onClick={()=>{setVentaProductos([]); setForm({ ventaId: '', productoId: '', cantidad: 1, motivo: '', tipo: 'Devolucion' }); setShowModal(true);}}><Plus size={16}/> Nueva</button>}
         </div>
       </div>
       <div className="table-container">
@@ -96,10 +128,29 @@ export default function Devoluciones() {
       </div>
       <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title="Nueva Devolución">
         <div className="grid-2">
-          <div className="form-group"><label>ID Venta *</label>
-            <input type="number" className="form-control" value={form.ventaId} onChange={e=>setForm({...form,ventaId:e.target.value})} placeholder="Ej: 42"/></div>
-          <div className="form-group"><label>ID Producto *</label>
-            <input type="number" className="form-control" value={form.productoId} onChange={e=>setForm({...form,productoId:e.target.value})}/></div>
+          <div className="form-group">
+            <label>ID Venta *</label>
+            <div className="flex gap-xs">
+              <input type="number" className="form-control" value={form.ventaId} onChange={e=>setForm({...form,ventaId:e.target.value})} placeholder="Ej: 42"/>
+              <button type="button" className="btn btn-secondary" onClick={() => handleCargarVenta(form.ventaId)} disabled={cargandoVenta}>
+                {cargandoVenta ? 'Cargando...' : 'Cargar'}
+              </button>
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Producto *</label>
+            <select className="form-control" value={form.productoId} onChange={e=>setForm({...form,productoId:e.target.value})} disabled={ventaProductos.length === 0}>
+              {ventaProductos.length === 0 ? (
+                <option value="">Busque un ID de venta válido</option>
+              ) : (
+                ventaProductos.map(d => {
+                  const pId = d.productoId || d.producto?.id;
+                  const pNombre = d.producto?.nombre || d.productoNombre || `#${pId}`;
+                  return <option key={pId} value={pId}>{pNombre} (Cant: {d.cantidad})</option>;
+                })
+              )}
+            </select>
+          </div>
         </div>
         <div className="grid-2">
           <div className="form-group"><label>Cantidad</label>
