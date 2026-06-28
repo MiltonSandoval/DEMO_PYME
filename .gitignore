@@ -1,0 +1,13 @@
+# Visual Studio cache and settings
+.vs/
+*.user
+slnx.sqlite
+
+# Build outputs
+bin/
+obj/
+
+# Node modules
+node_modules/
+dist/
+dist-ssr/

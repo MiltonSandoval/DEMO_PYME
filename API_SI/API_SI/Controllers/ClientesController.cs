@@ -1,0 +1,123 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using API_SI.Data;
+using API_SI.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace API_SI.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize]
+    public class ClientesController : ControllerBase
+    {
+        private readonly AppDbContext _context;
+
+        public ClientesController(AppDbContext context)
+        {
+            _context = context;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Cliente>>> GetAll()
+        {
+            return await _context.Clientes.ToListAsync();
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Cliente>> GetById(int id)
+        {
+            var cliente = await _context.Clientes.FindAsync(id);
+            if (cliente == null)
+            {
+                return NotFound(new { Message = "Cliente no encontrado." });
+            }
+            return Ok(cliente);
+        }
+
+        [HttpGet("buscar")]
+        public async Task<ActionResult<IEnumerable<Cliente>>> Buscar([FromQuery] string q)
+        {
+            if (string.IsNullOrEmpty(q))
+            {
+                return await GetAll();
+            }
+
+            var resultados = await _context.Clientes
+                .Where(c => (c.Nombre != null && c.Nombre.ToLower().Contains(q.ToLower())) ||
+                            (c.CI != null && c.CI.Contains(q)) ||
+                            (c.Telefono != null && c.Telefono.Contains(q)))
+                .Take(10)
+                .ToListAsync();
+
+            return Ok(resultados);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<Cliente>> Create([FromBody] Cliente cliente)
+        {
+            if (string.IsNullOrEmpty(cliente.Tipo))
+            {
+                cliente.Tipo = "normal";
+            }
+            cliente.FechaRegistro = DateOnly.FromDateTime(DateTime.UtcNow);
+            cliente.CreadoEn = DateTimeOffset.UtcNow;
+            cliente.ActualizadoEn = DateTimeOffset.UtcNow;
+            cliente.TotalCompras = 0;
+            cliente.TotalGastado = 0;
+
+            _context.Clientes.Add(cliente);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetById), new { id = cliente.Id }, cliente);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, [FromBody] Cliente input)
+        {
+            var cliente = await _context.Clientes.FindAsync(id);
+            if (cliente == null)
+            {
+                return NotFound(new { Message = "Cliente no encontrado." });
+            }
+
+            cliente.Nombre = input.Nombre;
+            cliente.Email = input.Email;
+            cliente.Telefono = input.Telefono;
+            cliente.CI = input.CI;
+            cliente.Direccion = input.Direccion;
+            cliente.Tipo = string.IsNullOrEmpty(input.Tipo) ? "normal" : input.Tipo;
+            cliente.Puntos = input.Puntos;
+            cliente.ActualizadoEn = DateTimeOffset.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return Ok(cliente);
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var cliente = await _context.Clientes.FindAsync(id);
+            if (cliente == null)
+            {
+                return NotFound(new { Message = "Cliente no encontrado." });
+            }
+
+            // Check if there are sales registered to this client
+            bool hasSales = await _context.Ventas.AnyAsync(v => v.IdCliente == id);
+            if (hasSales)
+            {
+                return BadRequest(new { Message = "No se puede eliminar el cliente porque posee historial de compras." });
+            }
+
+            _context.Clientes.Remove(cliente);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Cliente eliminado con éxito." });
+        }
+    }
+}
