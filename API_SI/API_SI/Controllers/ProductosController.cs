@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using API_SI.Data;
 using API_SI.Models;
+using API_SI.Extensions;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -22,13 +22,49 @@ namespace API_SI.Controllers
             _context = context;
         }
 
+        /// <summary>
+        /// GET /api/productos
+        /// Si se incluye el parámetro "page", devuelve PagedResult paginado.
+        /// Si NO se incluye, devuelve la lista completa (retrocompatibilidad con POS/Cotizaciones).
+        /// </summary>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Producto>>> GetAll()
+        public async Task<ActionResult> GetAll(
+            [FromQuery] int? page,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? search = null,
+            [FromQuery] int? idCategoria = null)
         {
-            return await _context.Productos
+            var query = _context.Productos
                 .Include(p => p.Categoria)
                 .Include(p => p.Proveedor)
-                .ToListAsync();
+                .AsQueryable();
+
+            // Filtrado en servidor
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var q = search.ToLower();
+                query = query.Where(p =>
+                    p.Nombre.ToLower().Contains(q) ||
+                    p.Codigo.ToLower().Contains(q));
+            }
+
+            if (idCategoria.HasValue)
+            {
+                query = query.Where(p => p.IdCategoria == idCategoria.Value);
+            }
+
+            // Ordenamiento estable
+            query = query.OrderBy(p => p.Nombre);
+
+            // Si viene parámetro page, devuelve resultado paginado
+            if (page.HasValue)
+            {
+                var paged = await query.ToPagedResultAsync(page.Value, pageSize);
+                return Ok(paged);
+            }
+
+            // Sin page → lista completa (retrocompatibilidad con POS/Cotizaciones)
+            return Ok(await query.ToListAsync());
         }
 
         [HttpGet("{id}")]
@@ -47,11 +83,11 @@ namespace API_SI.Controllers
         }
 
         [HttpGet("buscar")]
-        public async Task<ActionResult<IEnumerable<Producto>>> Buscar([FromQuery] string q)
+        public async Task<ActionResult> Buscar([FromQuery] string q)
         {
             if (string.IsNullOrEmpty(q))
             {
-                return await GetAll();
+                return await GetAll(null);
             }
 
             var resultados = await _context.Productos
@@ -66,7 +102,7 @@ namespace API_SI.Controllers
         }
 
         [HttpGet("alertas-stock")]
-        public async Task<ActionResult<IEnumerable<Producto>>> GetAlertasStock()
+        public async Task<ActionResult> GetAlertasStock()
         {
             var alertas = await _context.Productos
                 .Include(p => p.Categoria)

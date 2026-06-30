@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
 
 export default function Devoluciones() {
   const [items, setItems] = useState([]);
@@ -13,19 +14,33 @@ export default function Devoluciones() {
   const [form, setForm] = useState({ ventaId: '', productoId: '', cantidad: 1, motivo: '', tipo: 'Devolucion' });
   const [ventaProductos, setVentaProductos] = useState([]);
   const [cargandoVenta, setCargandoVenta] = useState(false);
+
+  // Paginación
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
   const { tienePermiso } = useAuth();
   const toast = useToast();
 
-  useEffect(() => { loadData(); }, []);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/devolucion', { params: { page, pageSize } });
+      setItems(res.data.items ?? res.data);
+      setTotalItems(res.data.totalItems ?? res.data.length);
+      setTotalPages(res.data.totalPages ?? 1);
+    } catch { toast.error('Error al cargar devoluciones'); } finally { setLoading(false); }
+  }, [page, pageSize]);
 
-  const loadData = async () => {
-    try { setLoading(true); const res = await api.get('/devolucion'); setItems(res.data); }
-    catch { toast.error('Error al cargar devoluciones'); } finally { setLoading(false); }
-  };
+  useEffect(() => { loadData(); }, [loadData]);
 
+  // Filtrado local sobre la página actual (busqueda en los items ya cargados)
   const filtered = items.filter(d =>
     d.motivo?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    d.id?.toString().includes(busqueda)
+    d.id?.toString().includes(busqueda) ||
+    d.productoNombre?.toLowerCase().includes(busqueda.toLowerCase())
   );
 
   const handleCargarVenta = async (ventaId) => {
@@ -112,7 +127,11 @@ export default function Devoluciones() {
         <table>
           <thead><tr><th>#</th><th>Fecha</th><th>Venta #</th><th>Producto</th><th>Cant.</th><th>Tipo</th><th>Motivo</th></tr></thead>
           <tbody>
-            {filtered.map(d=>(
+            {filtered.length === 0 ? (
+              <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
+                No hay devoluciones en esta página.
+              </td></tr>
+            ) : filtered.map(d=>(
               <tr key={d.id}>
                 <td><strong>#{d.id}</strong></td>
                 <td className="text-sm">{new Date(d.fecha || d.creadoEn).toLocaleDateString('es-BO')}</td>
@@ -125,6 +144,15 @@ export default function Devoluciones() {
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[10, 15, 25, 50]}
+        />
       </div>
       <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title="Nueva Devolución">
         <div className="grid-2">

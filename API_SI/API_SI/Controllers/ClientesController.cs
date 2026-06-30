@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using API_SI.Data;
 using API_SI.Models;
+using API_SI.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,10 +23,41 @@ namespace API_SI.Controllers
             _context = context;
         }
 
+        /// <summary>
+        /// GET /api/clientes
+        /// Si se incluye el parámetro "page", devuelve PagedResult paginado.
+        /// Si NO se incluye, devuelve la lista completa (retrocompatibilidad con POS).
+        /// </summary>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Cliente>>> GetAll()
+        public async Task<ActionResult> GetAll(
+            [FromQuery] int? page,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? search = null)
         {
-            return await _context.Clientes.ToListAsync();
+            var query = _context.Clientes.AsQueryable();
+
+            // Filtrado en servidor
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var q = search.ToLower();
+                query = query.Where(c =>
+                    (c.Nombre != null && c.Nombre.ToLower().Contains(q)) ||
+                    (c.CI != null && c.CI.Contains(q)) ||
+                    (c.Telefono != null && c.Telefono.Contains(q)) ||
+                    (c.Email != null && c.Email.ToLower().Contains(q)));
+            }
+
+            // Ordenamiento estable
+            query = query.OrderBy(c => c.Nombre);
+
+            // Paginación opcional
+            if (page.HasValue)
+            {
+                var paged = await query.ToPagedResultAsync(page.Value, pageSize);
+                return Ok(paged);
+            }
+
+            return Ok(await query.ToListAsync());
         }
 
         [HttpGet("{id}")]
@@ -44,7 +76,7 @@ namespace API_SI.Controllers
         {
             if (string.IsNullOrEmpty(q))
             {
-                return await GetAll();
+                return Ok(await _context.Clientes.OrderBy(c => c.Nombre).ToListAsync());
             }
 
             var resultados = await _context.Clientes

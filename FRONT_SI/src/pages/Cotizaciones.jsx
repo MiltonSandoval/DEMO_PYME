@@ -1,38 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, FileText, Send, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
 
 export default function Cotizaciones() {
   const [items, setItems] = useState([]);
   const [productos, setProductos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [inputBusqueda, setInputBusqueda] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     clienteNombre: '', clienteCelular: '', validezDias: 7, observacion: '', detalles: []
   });
   const [prodBusqueda, setProdBusqueda] = useState('');
+
+  // Paginación
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
   const { tienePermiso } = useAuth();
   const toast = useToast();
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [cRes, pRes] = await Promise.allSettled([api.get('/cotizacion'), api.get('/producto')]);
-      if (cRes.status === 'fulfilled') setItems(cRes.value.data);
-      if (pRes.status === 'fulfilled') setProductos(pRes.value.data.filter(p => p.activo !== false));
+      const [cRes, pRes] = await Promise.allSettled([
+        api.get('/cotizacion', { params: { page, pageSize, search: busqueda || undefined } }),
+        api.get('/producto'), // sin paginación para el selector de productos en el modal
+      ]);
+      if (cRes.status === 'fulfilled') {
+        const data = cRes.value.data;
+        setItems(data.items ?? data);
+        setTotalItems(data.totalItems ?? (data.items ? data.items.length : data.length));
+        setTotalPages(data.totalPages ?? 1);
+      }
+      if (pRes.status === 'fulfilled') setProductos(pRes.value.data.filter(p => p.activo !== false || p.estado === 'activo'));
     } catch {} finally { setLoading(false); }
-  };
+  }, [page, pageSize, busqueda]);
 
-  const filtered = items.filter(c =>
-    c.clienteNombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    c.id?.toString().includes(busqueda)
-  );
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Debounce búsqueda 400ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBusqueda(inputBusqueda);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [inputBusqueda]);
+
+  const filtered = items; // Los ítems ya vienen filtrados del servidor
 
   const addDetalle = (prod) => {
     setForm(prev => {
@@ -99,7 +122,7 @@ export default function Cotizaciones() {
         <h1>Cotizaciones</h1>
         <div className="flex gap-sm">
           <div className="search-bar"><Search size={16} className="search-icon"/>
-            <input className="form-control" placeholder="Buscar..." value={busqueda} onChange={e=>setBusqueda(e.target.value)}/></div>
+            <input className="form-control" placeholder="Buscar por cliente o #..." value={inputBusqueda} onChange={e=>setInputBusqueda(e.target.value)}/></div>
           {tienePermiso('Cotizaciones','Crear') && <button className="btn btn-fire" onClick={()=>setShowModal(true)}><Plus size={16}/> Nueva</button>}
         </div>
       </div>
@@ -107,7 +130,11 @@ export default function Cotizaciones() {
         <table>
           <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Validez</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody>
-            {filtered.map(c=>(
+            {items.length === 0 ? (
+              <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
+                {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay cotizaciones registradas.'}
+              </td></tr>
+            ) : items.map(c=>(
               <tr key={c.id}>
                 <td><strong>#{c.id}</strong></td>
                 <td className="text-sm">{new Date(c.fechaCreacion || c.creadoEn).toLocaleDateString('es-BO')}</td>
@@ -122,6 +149,14 @@ export default function Cotizaciones() {
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title="Nueva Cotización" size="lg">

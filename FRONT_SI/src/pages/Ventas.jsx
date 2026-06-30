@@ -1,33 +1,51 @@
-import { useState, useEffect } from 'react';
-import { Search, Eye, XCircle, Receipt } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, Eye, XCircle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Pagination from '../components/Pagination';
 
 export default function Ventas() {
   const [items, setItems] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [inputBusqueda, setInputBusqueda] = useState('');
   const [showDetail, setShowDetail] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Paginación
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
   const { tienePermiso } = useAuth();
   const toast = useToast();
 
-  useEffect(() => { loadData(); }, []);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/venta', { params: { page, pageSize, search: busqueda || undefined } });
+      setItems(res.data.items ?? res.data);
+      setTotalItems(res.data.totalItems ?? res.data.length);
+      setTotalPages(res.data.totalPages ?? 1);
+    } catch { toast.error('Error al cargar ventas'); }
+    finally { setLoading(false); }
+  }, [page, pageSize, busqueda]);
 
-  const loadData = async () => {
-    try { setLoading(true); const res = await api.get('/venta'); setItems(res.data); }
-    catch { toast.error('Error al cargar ventas'); } finally { setLoading(false); }
-  };
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const filtered = items.filter(v =>
-    v.id?.toString().includes(busqueda) ||
-    (v.cliente || v.clienteNombre)?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (v.trabajador || v.trabajadorNombre)?.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  // Debounce búsqueda 400ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBusqueda(inputBusqueda);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [inputBusqueda]);
 
   const handleShowDetail = async (item) => {
     try {
@@ -49,11 +67,10 @@ export default function Ventas() {
   };
 
   const estadoColor = (estado) => {
-    switch(estado) {
-      case 'Completada': return 'badge-success';
-      case 'Anulada': return 'badge-danger';
-      default: return 'badge-warning';
-    }
+    const e = (estado || '').toLowerCase();
+    if (e === 'completada') return 'badge-success';
+    if (e === 'anulada' || e === 'cancelada') return 'badge-danger';
+    return 'badge-warning';
   };
 
   if (loading) return <div className="loading-screen"><div className="spinner"/><span>Cargando...</span></div>;
@@ -64,14 +81,19 @@ export default function Ventas() {
         <h1>Historial de Ventas</h1>
         <div className="search-bar">
           <Search size={16} className="search-icon"/>
-          <input className="form-control" placeholder="Buscar por # factura, cliente..." value={busqueda} onChange={e=>setBusqueda(e.target.value)}/>
+          <input className="form-control" placeholder="Buscar por # factura, cliente o vendedor..."
+            value={inputBusqueda} onChange={e => setInputBusqueda(e.target.value)}/>
         </div>
       </div>
       <div className="table-container">
         <table>
           <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Método</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody>
-            {filtered.map(v=>(
+            {items.length === 0 ? (
+              <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
+                {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay ventas registradas.'}
+              </td></tr>
+            ) : items.map(v=>(
               <tr key={v.id}>
                 <td><strong>#{v.id}</strong></td>
                 <td className="text-sm">{new Date(v.fecha || v.creadoEn).toLocaleString('es-BO')}</td>
@@ -90,6 +112,15 @@ export default function Ventas() {
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[10, 15, 25, 50]}
+        />
       </div>
 
       {/* Detail Modal */}
@@ -116,8 +147,8 @@ export default function Ventas() {
                 </tbody>
               </table>
             </div>
-            <div className="cart-summary" style={{marginTop:16, borderRadius:'var(--radius-sm)'}}>
-              <div className="summary-row total"><span>TOTAL:</span><span>${(selected.total || selected.totalUSD)?.toFixed(2)}</span></div>
+            <div style={{marginTop:16, padding:'12px 16px', background:'var(--bg-input)', borderRadius:'var(--radius-sm)', display:'flex', justifyContent:'space-between', fontWeight:700}}>
+              <span>TOTAL:</span><span style={{color:'var(--yellow-400)'}}>${(selected.total || selected.totalUSD)?.toFixed(2)}</span>
             </div>
           </>
         )}

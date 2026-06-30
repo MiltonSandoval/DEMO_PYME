@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using API_SI.Data;
 using API_SI.DTOs.Ventas;
 using API_SI.Models;
+using API_SI.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +28,14 @@ namespace API_SI.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<object>>> GetAll([FromQuery] string? fechaInicio, [FromQuery] string? fechaFin, [FromQuery] int? idCliente, [FromQuery] string? estado)
+        public async Task<ActionResult> GetAll(
+            [FromQuery] int? page,
+            [FromQuery] int pageSize = 15,
+            [FromQuery] string? fechaInicio = null,
+            [FromQuery] string? fechaFin = null,
+            [FromQuery] int? idCliente = null,
+            [FromQuery] string? estado = null,
+            [FromQuery] string? search = null)
         {
             var query = _context.Ventas
                 .Include(v => v.Cliente)
@@ -55,7 +63,18 @@ namespace API_SI.Controllers
                 query = query.Where(v => v.Estado.ToLower() == estado.ToLower());
             }
 
-            var ventas = await query
+            // Búsqueda por nombre de cliente o trabajador
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var sq = search.ToLower();
+                query = query.Where(v =>
+                    v.Cliente.Nombre.ToLower().Contains(sq) ||
+                    v.Trabajador.Nombre.ToLower().Contains(sq) ||
+                    v.Id.ToString().Contains(sq));
+            }
+
+            // Ordenamiento estable
+            var orderedQuery = query
                 .OrderByDescending(v => v.Fecha)
                 .Select(v => new
                 {
@@ -70,9 +89,20 @@ namespace API_SI.Controllers
                     Cliente = v.Cliente.Nombre,
                     Trabajador = v.Trabajador.Nombre,
                     MetodoPago = v.MetodoPago.Nombre
-                })
-                .ToListAsync();
+                });
 
+            // Paginación opcional
+            if (page.HasValue)
+            {
+                int pg = page.Value < 1 ? 1 : page.Value;
+                int ps = pageSize < 1 ? 15 : (pageSize > 100 ? 100 : pageSize);
+                var totalItems = await orderedQuery.CountAsync();
+                var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling((double)totalItems / ps);
+                var items = await orderedQuery.Skip((pg - 1) * ps).Take(ps).ToListAsync();
+                return Ok(new { items, totalItems, totalPages, page = pg, pageSize = ps });
+            }
+
+            var ventas = await orderedQuery.ToListAsync();
             return Ok(ventas);
         }
 
