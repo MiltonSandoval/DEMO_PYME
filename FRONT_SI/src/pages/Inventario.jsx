@@ -5,37 +5,36 @@ import { useToast } from '../components/Toast';
 import Pagination from '../components/Pagination';
 
 export default function Inventario() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Paginación
+  // Paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
 
   const toast = useToast();
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/movimientoinventario', { params: { page, pageSize } });
-      setItems(res.data.items ?? res.data);
-      setTotalItems(res.data.totalItems ?? res.data.length);
-      setTotalPages(res.data.totalPages ?? 1);
+      const res = await api.get('/movimientoinventario');
+      setAllItems(res.data.items ?? res.data);
     } catch { toast.error('Error al cargar inventario'); }
     finally { setLoading(false); }
-  }, [page, pageSize]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Filtrado local en la página actual (el volumen es pequeño - pageSize registros)
-  const filtered = items.filter(m =>
+  // Filtrado y paginación cliente-side
+  const filtered = allItems.filter(m =>
     (m.producto || m.productoNombre)?.toLowerCase().includes(busqueda.toLowerCase()) ||
     m.tipo?.toLowerCase().includes(busqueda.toLowerCase()) ||
     m.motivo?.toLowerCase().includes(busqueda.toLowerCase())
   );
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const tipoColor = (tipo) => {
     switch(tipo?.toLowerCase()) {
@@ -62,11 +61,11 @@ export default function Inventario() {
         <table>
           <thead><tr><th>#</th><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th></tr></thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {items.length === 0 ? (
               <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
                 No hay movimientos en esta página.
               </td></tr>
-            ) : filtered.map(m=>(
+            ) : items.map(m=>(
               <tr key={m.id}>
                 <td>#{m.id}</td>
                 <td className="text-sm">{new Date(m.fecha || m.creadoEn).toLocaleString('es-BO')}</td>
@@ -86,7 +85,7 @@ export default function Inventario() {
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
           pageSizeOptions={[10, 15, 25, 50]}
         />
       </div>

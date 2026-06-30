@@ -8,7 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Pagination from '../components/Pagination';
 
 export default function Clientes() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [inputBusqueda, setInputBusqueda] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -17,11 +17,9 @@ export default function Clientes() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ nombre: '', ci: '', telefono: '', email: '', direccion: '' });
 
-  // Paginación
+  // Paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
 
   const { tienePermiso } = useAuth();
   const toast = useToast();
@@ -29,15 +27,24 @@ export default function Clientes() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/cliente', { params: { page, pageSize, search: busqueda || undefined } });
-      setItems(res.data.items ?? res.data);
-      setTotalItems(res.data.totalItems ?? res.data.length);
-      setTotalPages(res.data.totalPages ?? 1);
+      const res = await api.get('/cliente');
+      const data = res.data.items ?? res.data;
+      setAllItems(data);
     } catch { toast.error('Error al cargar clientes'); }
     finally { setLoading(false); }
-  }, [page, pageSize, busqueda]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Filtrado y paginación cliente-side
+  const filtered = allItems.filter(c =>
+    c.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    c.ci?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    c.telefono?.toLowerCase().includes(busqueda.toLowerCase())
+  );
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   // Debounce búsqueda 400ms
   useEffect(() => {
@@ -108,7 +115,7 @@ export default function Clientes() {
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
         />
       </div>
       <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title={selected?'Editar Cliente':'Nuevo Cliente'}>

@@ -4,9 +4,10 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
 
 export default function Compras() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [productos, setProductos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -16,6 +17,11 @@ export default function Compras() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ proveedorId: '', observacion: '', detalles: [] });
   const [prodBusqueda, setProdBusqueda] = useState('');
+
+  // Paginación cliente-side
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+
   const { tienePermiso } = useAuth();
   const toast = useToast();
 
@@ -27,16 +33,20 @@ export default function Compras() {
       const [cRes, pRes, prRes] = await Promise.allSettled([
         api.get('/compra'), api.get('/producto'), api.get('/proveedor')
       ]);
-      if (cRes.status === 'fulfilled') setItems(cRes.value.data);
-      if (pRes.status === 'fulfilled') setProductos(pRes.value.data);
-      if (prRes.status === 'fulfilled') setProveedores(prRes.value.data);
+      if (cRes.status === 'fulfilled') setAllItems(cRes.value.data.items ?? cRes.value.data);
+      if (pRes.status === 'fulfilled') setProductos(pRes.value.data.items ?? pRes.value.data);
+      if (prRes.status === 'fulfilled') setProveedores(prRes.value.data.items ?? prRes.value.data);
     } catch {} finally { setLoading(false); }
   };
 
-  const filtered = items.filter(c =>
-    c.proveedorNombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+  // Filtrado y paginación cliente-side
+  const filtered = allItems.filter(c =>
+    (c.proveedor || c.proveedorNombre || '')?.toLowerCase().includes(busqueda.toLowerCase()) ||
     c.id?.toString().includes(busqueda)
   );
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const addDetalle = (prod) => {
     setForm(prev => {
@@ -100,17 +110,30 @@ export default function Compras() {
         <table>
           <thead><tr><th>#</th><th>Fecha</th><th>Proveedor</th><th>Total</th><th>Acciones</th></tr></thead>
           <tbody>
-            {filtered.map(c=>(
+            {items.length === 0 ? (
+              <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
+                {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay compras registradas.'}
+              </td></tr>
+            ) : items.map(c=>(
               <tr key={c.id}>
                 <td><strong>#{c.id}</strong></td>
                 <td className="text-sm">{new Date(c.fecha || c.creadoEn).toLocaleDateString('es-BO')}</td>
                 <td>{c.proveedor || c.proveedorNombre || '—'}</td>
-                <td style={{fontWeight:700,color:'var(--yellow-400)'}}>${(c.total || c.totalUSD)?.toFixed(2)}</td>
+                <td style={{fontWeight:700,color:'var(--yellow-400)'}}>${ (c.total || c.totalUSD)?.toFixed(2)}</td>
                 <td><button className="btn btn-ghost btn-sm" onClick={()=>handleShowDetail(c)}><Eye size={14}/></button></td>
               </tr>
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          pageSizeOptions={[10, 15, 25, 50]}
+        />
       </div>
 
       {/* Detail */}

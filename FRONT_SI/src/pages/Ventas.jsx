@@ -8,7 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Pagination from '../components/Pagination';
 
 export default function Ventas() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [inputBusqueda, setInputBusqueda] = useState('');
   const [showDetail, setShowDetail] = useState(false);
@@ -16,11 +16,9 @@ export default function Ventas() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Paginación
+  // Paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
 
   const { tienePermiso } = useAuth();
   const toast = useToast();
@@ -28,15 +26,24 @@ export default function Ventas() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/venta', { params: { page, pageSize, search: busqueda || undefined } });
-      setItems(res.data.items ?? res.data);
-      setTotalItems(res.data.totalItems ?? res.data.length);
-      setTotalPages(res.data.totalPages ?? 1);
+      const res = await api.get('/venta');
+      const data = res.data.items ?? res.data;
+      setAllItems(data);
     } catch { toast.error('Error al cargar ventas'); }
     finally { setLoading(false); }
-  }, [page, pageSize, busqueda]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Filtrado y paginación cliente-side
+  const filtered = allItems.filter(v =>
+    v.id?.toString().includes(busqueda) ||
+    (v.cliente || v.clienteNombre || '')?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    (v.trabajador || v.trabajadorNombre || '')?.toLowerCase().includes(busqueda.toLowerCase())
+  );
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   // Debounce búsqueda 400ms
   useEffect(() => {
@@ -118,7 +125,7 @@ export default function Ventas() {
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
           pageSizeOptions={[10, 15, 25, 50]}
         />
       </div>

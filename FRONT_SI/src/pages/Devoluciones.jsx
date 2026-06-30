@@ -7,7 +7,7 @@ import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 
 export default function Devoluciones() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -15,11 +15,9 @@ export default function Devoluciones() {
   const [ventaProductos, setVentaProductos] = useState([]);
   const [cargandoVenta, setCargandoVenta] = useState(false);
 
-  // Paginación
+  // Paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
 
   const { tienePermiso } = useAuth();
   const toast = useToast();
@@ -27,21 +25,22 @@ export default function Devoluciones() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/devolucion', { params: { page, pageSize } });
-      setItems(res.data.items ?? res.data);
-      setTotalItems(res.data.totalItems ?? res.data.length);
-      setTotalPages(res.data.totalPages ?? 1);
+      const res = await api.get('/devolucion');
+      setAllItems(res.data.items ?? res.data);
     } catch { toast.error('Error al cargar devoluciones'); } finally { setLoading(false); }
-  }, [page, pageSize]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Filtrado local sobre la página actual (busqueda en los items ya cargados)
-  const filtered = items.filter(d =>
+  // Filtrado y paginación cliente-side
+  const filtered = allItems.filter(d =>
     d.motivo?.toLowerCase().includes(busqueda.toLowerCase()) ||
     d.id?.toString().includes(busqueda) ||
     d.productoNombre?.toLowerCase().includes(busqueda.toLowerCase())
   );
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const handleCargarVenta = async (ventaId) => {
     if (!ventaId) {
@@ -127,11 +126,11 @@ export default function Devoluciones() {
         <table>
           <thead><tr><th>#</th><th>Fecha</th><th>Venta #</th><th>Producto</th><th>Cant.</th><th>Tipo</th><th>Motivo</th></tr></thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {items.length === 0 ? (
               <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
                 No hay devoluciones en esta página.
               </td></tr>
-            ) : filtered.map(d=>(
+            ) : items.map(d=>(
               <tr key={d.id}>
                 <td><strong>#{d.id}</strong></td>
                 <td className="text-sm">{new Date(d.fecha || d.creadoEn).toLocaleDateString('es-BO')}</td>
@@ -150,7 +149,7 @@ export default function Devoluciones() {
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
           pageSizeOptions={[10, 15, 25, 50]}
         />
       </div>

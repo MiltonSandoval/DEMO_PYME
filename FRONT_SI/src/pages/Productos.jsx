@@ -8,7 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Pagination from '../components/Pagination';
 
 export default function Productos() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [inputBusqueda, setInputBusqueda] = useState('');
@@ -17,11 +17,9 @@ export default function Productos() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Paginación
+  // Paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
 
   const [form, setForm] = useState({
     nombre: '', codigoBarras: '', precioCompraUSD: 0,
@@ -35,19 +33,28 @@ export default function Productos() {
     try {
       setLoading(true);
       const [pRes, cRes] = await Promise.all([
-        api.get('/producto', { params: { page, pageSize, search: busqueda || undefined } }),
+        api.get('/producto'),
         api.get('/categoria'),
       ]);
-      // La respuesta es paginada: { items, totalItems, totalPages, page, pageSize }
-      setItems(pRes.data.items ?? pRes.data);
-      setTotalItems(pRes.data.totalItems ?? pRes.data.length);
-      setTotalPages(pRes.data.totalPages ?? 1);
+      const data = pRes.data.items ?? pRes.data;
+      setAllItems(data);
       setCategorias(cRes.data);
     } catch { toast.error('Error al cargar productos'); }
     finally { setLoading(false); }
-  }, [page, pageSize, busqueda]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Filtrado sobre todos los items
+  const filtered = allItems.filter(p =>
+    p.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    (p.codigo || p.codigoBarras || '')?.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  // Paginación cliente-side
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   // Debounce búsqueda: esperar 400ms después de que el usuario deje de escribir
   useEffect(() => {
@@ -185,7 +192,7 @@ export default function Productos() {
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
         />
       </div>
 

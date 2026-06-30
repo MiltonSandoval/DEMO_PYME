@@ -7,7 +7,7 @@ import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 
 export default function Cotizaciones() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [productos, setProductos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [inputBusqueda, setInputBusqueda] = useState('');
@@ -18,11 +18,9 @@ export default function Cotizaciones() {
   });
   const [prodBusqueda, setProdBusqueda] = useState('');
 
-  // Paginación
+  // Paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
 
   const { tienePermiso } = useAuth();
   const toast = useToast();
@@ -31,20 +29,27 @@ export default function Cotizaciones() {
     try {
       setLoading(true);
       const [cRes, pRes] = await Promise.allSettled([
-        api.get('/cotizacion', { params: { page, pageSize, search: busqueda || undefined } }),
+        api.get('/cotizacion'),
         api.get('/producto'), // sin paginación para el selector de productos en el modal
       ]);
       if (cRes.status === 'fulfilled') {
         const data = cRes.value.data;
-        setItems(data.items ?? data);
-        setTotalItems(data.totalItems ?? (data.items ? data.items.length : data.length));
-        setTotalPages(data.totalPages ?? 1);
+        setAllItems(data.items ?? data);
       }
       if (pRes.status === 'fulfilled') setProductos(pRes.value.data.filter(p => p.activo !== false || p.estado === 'activo'));
     } catch {} finally { setLoading(false); }
-  }, [page, pageSize, busqueda]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Filtrado y paginación cliente-side
+  const filtered = allItems.filter(c =>
+    c.clienteNombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    c.id?.toString().includes(busqueda)
+  );
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   // Debounce búsqueda 400ms
   useEffect(() => {
@@ -54,8 +59,6 @@ export default function Cotizaciones() {
     }, 400);
     return () => clearTimeout(timer);
   }, [inputBusqueda]);
-
-  const filtered = items; // Los ítems ya vienen filtrados del servidor
 
   const addDetalle = (prod) => {
     setForm(prev => {
@@ -155,7 +158,7 @@ export default function Cotizaciones() {
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
         />
       </div>
 
