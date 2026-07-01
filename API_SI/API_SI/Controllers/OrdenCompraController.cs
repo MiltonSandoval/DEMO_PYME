@@ -25,6 +25,7 @@ namespace API_SI.Controllers
         }
 
         [HttpGet]
+        // Comentario de control de cambios de paginación
         public async Task<ActionResult<IEnumerable<object>>> GetAll()
         {
             var ordenes = await _context.OrdenesCompra

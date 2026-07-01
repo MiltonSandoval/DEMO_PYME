@@ -16,6 +16,7 @@ export default function Devoluciones() {
   const [cargandoVenta, setCargandoVenta] = useState(false);
 
   // Paginación cliente-side
+  // Modificación de paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
 

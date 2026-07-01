@@ -10,6 +10,7 @@ export default function Inventario() {
   const [loading, setLoading] = useState(true);
 
   // Paginación cliente-side
+  // Modificación de paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
 

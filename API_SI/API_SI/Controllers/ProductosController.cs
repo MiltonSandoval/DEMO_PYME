@@ -28,6 +28,7 @@ namespace API_SI.Controllers
         /// Si NO se incluye, devuelve la lista completa (retrocompatibilidad con POS/Cotizaciones).
         /// </summary>
         [HttpGet]
+        // Comentario de control de cambios de paginación
         public async Task<ActionResult> GetAll(
             [FromQuery] int? page,
             [FromQuery] int pageSize = 10,

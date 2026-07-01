@@ -18,6 +18,7 @@ export default function Clientes() {
   const [form, setForm] = useState({ nombre: '', ci: '', telefono: '', email: '', direccion: '' });
 
   // Paginación cliente-side
+  // Modificación de paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 

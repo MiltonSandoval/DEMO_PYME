@@ -19,6 +19,7 @@ export default function Compras() {
   const [prodBusqueda, setProdBusqueda] = useState('');
 
   // Paginación cliente-side
+  // Modificación de paginación cliente-side
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
 

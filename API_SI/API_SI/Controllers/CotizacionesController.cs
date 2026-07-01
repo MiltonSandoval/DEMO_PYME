@@ -28,6 +28,7 @@ namespace API_SI.Controllers
         }
 
         [HttpGet]
+        // Comentario de control de cambios de paginación
         public async Task<ActionResult> GetAll(
             [FromQuery] int? page,
             [FromQuery] int pageSize = 15,
