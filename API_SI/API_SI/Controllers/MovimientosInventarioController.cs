@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using API_SI.Data;
 using API_SI.Models;
+using API_SI.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,7 +25,14 @@ namespace API_SI.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<object>>> GetAll([FromQuery] int? idProducto, [FromQuery] string? tipo, [FromQuery] string? fechaInicio, [FromQuery] string? fechaFin)
+        // Comentario de control de cambios de paginación
+        public async Task<ActionResult> GetAll(
+            [FromQuery] int? page,
+            [FromQuery] int pageSize = 15,
+            [FromQuery] int? idProducto = null,
+            [FromQuery] string? tipo = null,
+            [FromQuery] string? fechaInicio = null,
+            [FromQuery] string? fechaFin = null)
         {
             var query = _context.MovimientosInventario
                 .Include(m => m.Producto)
@@ -52,7 +60,7 @@ namespace API_SI.Controllers
                 query = query.Where(m => m.Fecha <= end);
             }
 
-            var movimientos = await query
+            var orderedQuery = query
                 .OrderByDescending(m => m.Fecha)
                 .Select(m => new
                 {
@@ -65,9 +73,20 @@ namespace API_SI.Controllers
                     CodigoProducto = m.Producto.Codigo,
                     Proveedor = m.Proveedor != null ? m.Proveedor.Nombre : null,
                     Trabajador = m.Trabajador.Nombre
-                })
-                .ToListAsync();
+                });
 
+            // Paginación opcional
+            if (page.HasValue)
+            {
+                int pg = page.Value < 1 ? 1 : page.Value;
+                int ps = pageSize < 1 ? 15 : (pageSize > 100 ? 100 : pageSize);
+                var totalItems = await orderedQuery.CountAsync();
+                var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling((double)totalItems / ps);
+                var items = await orderedQuery.Skip((pg - 1) * ps).Take(ps).ToListAsync();
+                return Ok(new { items, totalItems, totalPages, page = pg, pageSize = ps });
+            }
+
+            var movimientos = await orderedQuery.ToListAsync();
             return Ok(movimientos);
         }
 

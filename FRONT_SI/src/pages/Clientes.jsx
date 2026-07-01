@@ -1,34 +1,60 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Pagination from '../components/Pagination';
 
 export default function Clientes() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [inputBusqueda, setInputBusqueda] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ nombre: '', ci: '', telefono: '', email: '', direccion: '' });
+
+  // Paginación cliente-side
+  // Modificación de paginación cliente-side
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const { tienePermiso } = useAuth();
   const toast = useToast();
 
-  useEffect(() => { loadData(); }, []);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/cliente');
+      const data = res.data.items ?? res.data;
+      setAllItems(data);
+    } catch { toast.error('Error al cargar clientes'); }
+    finally { setLoading(false); }
+  }, []);
 
-  const loadData = async () => {
-    try { setLoading(true); const res = await api.get('/cliente'); setItems(res.data); }
-    catch { toast.error('Error al cargar clientes'); } finally { setLoading(false); }
-  };
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const filtered = items.filter(c =>
+  // Filtrado y paginación cliente-side
+  const filtered = allItems.filter(c =>
     c.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    c.ci?.includes(busqueda) ||
-    c.telefono?.includes(busqueda)
+    c.ci?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    c.telefono?.toLowerCase().includes(busqueda.toLowerCase())
   );
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  // Debounce búsqueda 400ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBusqueda(inputBusqueda);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [inputBusqueda]);
 
   const openCreate = () => { setSelected(null); setForm({ nombre: '', ci: '', telefono: '', email: '', direccion: '' }); setShowModal(true); };
   const openEdit = (item) => {
@@ -59,7 +85,8 @@ export default function Clientes() {
         <h1>Clientes</h1>
         <div className="flex gap-sm">
           <div className="search-bar"><Search size={16} className="search-icon"/>
-            <input className="form-control" placeholder="Buscar por nombre, CI o celular..." value={busqueda} onChange={e=>setBusqueda(e.target.value)}/></div>
+            <input className="form-control" placeholder="Buscar por nombre, CI o celular..."
+              value={inputBusqueda} onChange={e => setInputBusqueda(e.target.value)}/></div>
           {tienePermiso('Clientes','Crear') && <button className="btn btn-fire" onClick={openCreate}><Plus size={16}/> Nuevo</button>}
         </div>
       </div>
@@ -67,7 +94,11 @@ export default function Clientes() {
         <table>
           <thead><tr><th>Nombre</th><th>CI</th><th>Celular/Teléfono</th><th>Email</th><th>Dirección</th><th>Acciones</th></tr></thead>
           <tbody>
-            {filtered.map(c=>(
+            {items.length === 0 ? (
+              <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
+                {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay clientes registrados.'}
+              </td></tr>
+            ) : items.map(c=>(
               <tr key={c.id}>
                 <td><strong>{c.nombre}</strong></td><td>{c.ci||'—'}</td><td>{c.telefono||'—'}</td>
                 <td className="text-muted">{c.email||'—'}</td><td className="text-muted">{c.direccion||'—'}</td>
@@ -79,6 +110,14 @@ export default function Clientes() {
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+        />
       </div>
       <Modal isOpen={showModal} onClose={()=>setShowModal(false)} title={selected?'Editar Cliente':'Nuevo Cliente'}>
         <div className="grid-2">

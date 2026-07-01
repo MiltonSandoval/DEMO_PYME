@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using API_SI.Data;
 using API_SI.DTOs.Devoluciones;
 using API_SI.Models;
+using API_SI.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,11 +26,25 @@ namespace API_SI.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<object>>> GetAll()
+        // Comentario de control de cambios de paginación
+        public async Task<ActionResult> GetAll(
+            [FromQuery] int? page,
+            [FromQuery] int pageSize = 15,
+            [FromQuery] string? estado = null)
         {
-            var devs = await _context.Devoluciones
+            var query = _context.Devoluciones
                 .Include(d => d.Venta)
                 .Include(d => d.Trabajador)
+                .Include(d => d.DevolucionDetalles)
+                    .ThenInclude(dd => dd.Producto)
+                .AsQueryable();
+
+            if (!string.IsNullOrEmpty(estado))
+            {
+                query = query.Where(d => d.Estado.ToLower() == estado.ToLower());
+            }
+
+            var orderedQuery = query
                 .OrderByDescending(d => d.Fecha)
                 .Select(d => new
                 {
@@ -45,9 +60,20 @@ namespace API_SI.Controllers
                     Cantidad = d.DevolucionDetalles.Sum(dd => dd.Cantidad),
                     Motivo = d.DevolucionDetalles.Select(dd => dd.Motivo).FirstOrDefault() ?? d.Notas,
                     Tipo = d.Reingreso ? "Devolucion" : "Merma"
-                })
-                .ToListAsync();
+                });
 
+            // Paginación opcional
+            if (page.HasValue)
+            {
+                int pg = page.Value < 1 ? 1 : page.Value;
+                int ps = pageSize < 1 ? 15 : (pageSize > 100 ? 100 : pageSize);
+                var totalItems = await orderedQuery.CountAsync();
+                var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling((double)totalItems / ps);
+                var items = await orderedQuery.Skip((pg - 1) * ps).Take(ps).ToListAsync();
+                return Ok(new { items, totalItems, totalPages, page = pg, pageSize = ps });
+            }
+
+            var devs = await orderedQuery.ToListAsync();
             return Ok(devs);
         }
 

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using API_SI.Data;
 using API_SI.DTOs.Cotizaciones;
 using API_SI.Models;
+using API_SI.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,11 +28,35 @@ namespace API_SI.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<object>>> GetAll()
+        // Comentario de control de cambios de paginación
+        public async Task<ActionResult> GetAll(
+            [FromQuery] int? page,
+            [FromQuery] int pageSize = 15,
+            [FromQuery] string? estado = null,
+            [FromQuery] string? search = null)
         {
-            var cotizaciones = await _context.Cotizaciones
+            var query = _context.Cotizaciones
                 .Include(c => c.Cliente)
                 .Include(c => c.Trabajador)
+                .AsQueryable();
+
+            if (!string.IsNullOrEmpty(estado))
+            {
+                query = query.Where(c => c.Estado.ToLower() == estado.ToLower());
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var sq = search.ToLower();
+                query = query.Where(c =>
+                    c.ClienteNombre.ToLower().Contains(sq) ||
+                    c.Numero.ToLower().Contains(sq) ||
+                    (c.ClienteTelefono != null && c.ClienteTelefono.Contains(sq)));
+            }
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            var orderedQuery = query
                 .OrderByDescending(c => c.FechaCreacion)
                 .Select(c => new
                 {
@@ -47,10 +72,21 @@ namespace API_SI.Controllers
                     c.Estado,
                     FechaCreacion = c.FechaCreacion,
                     Trabajador = c.Trabajador.Nombre,
-                    Vencida = c.FechaVencimiento < DateOnly.FromDateTime(DateTime.UtcNow) && c.Estado == "pendiente"
-                })
-                .ToListAsync();
+                    Vencida = c.FechaVencimiento < today && c.Estado == "pendiente"
+                });
 
+            // Paginación opcional
+            if (page.HasValue)
+            {
+                int pg = page.Value < 1 ? 1 : page.Value;
+                int ps = pageSize < 1 ? 15 : (pageSize > 100 ? 100 : pageSize);
+                var totalItems = await orderedQuery.CountAsync();
+                var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling((double)totalItems / ps);
+                var items = await orderedQuery.Skip((pg - 1) * ps).Take(ps).ToListAsync();
+                return Ok(new { items, totalItems, totalPages, page = pg, pageSize = ps });
+            }
+
+            var cotizaciones = await orderedQuery.ToListAsync();
             return Ok(cotizaciones);
         }
 

@@ -1,19 +1,27 @@
-import { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, Package, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Pagination from '../components/Pagination';
 
 export default function Productos() {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [inputBusqueda, setInputBusqueda] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Paginación cliente-side
+  // Modificación de paginación cliente-side
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const [form, setForm] = useState({
     nombre: '', codigoBarras: '', precioCompraUSD: 0,
     precioVentaUSD: 0, stock: 0, stockMinimo: 5, categoriaId: '', activo: true,
@@ -22,22 +30,41 @@ export default function Productos() {
   const { tienePermiso } = useAuth();
   const toast = useToast();
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [pRes, cRes] = await Promise.all([api.get('/producto'), api.get('/categoria')]);
-      setItems(pRes.data);
+      const [pRes, cRes] = await Promise.all([
+        api.get('/producto'),
+        api.get('/categoria'),
+      ]);
+      const data = pRes.data.items ?? pRes.data;
+      setAllItems(data);
       setCategorias(cRes.data);
     } catch { toast.error('Error al cargar productos'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  const filtered = items.filter(p =>
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Filtrado sobre todos los items
+  const filtered = allItems.filter(p =>
     p.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (p.codigo || p.codigoBarras)?.toLowerCase().includes(busqueda.toLowerCase())
+    (p.codigo || p.codigoBarras || '')?.toLowerCase().includes(busqueda.toLowerCase())
   );
+
+  // Paginación cliente-side
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const items = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  // Debounce búsqueda: esperar 400ms después de que el usuario deje de escribir
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBusqueda(inputBusqueda);
+      setPage(1); // Reiniciar a página 1 al buscar
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [inputBusqueda]);
 
   const openCreate = () => {
     setSelected(null);
@@ -104,8 +131,12 @@ export default function Productos() {
         <div className="flex gap-sm">
           <div className="search-bar">
             <Search size={16} className="search-icon" />
-            <input className="form-control" placeholder="Buscar..." value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)} />
+            <input
+              className="form-control"
+              placeholder="Buscar nombre o código..."
+              value={inputBusqueda}
+              onChange={(e) => setInputBusqueda(e.target.value)}
+            />
           </div>
           {tienePermiso('Productos', 'Crear') && (
             <button className="btn btn-fire" onClick={openCreate}><Plus size={16}/> Nuevo</button>
@@ -122,7 +153,11 @@ export default function Productos() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(p => (
+            {items.length === 0 ? (
+              <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
+                {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay productos registrados.'}
+              </td></tr>
+            ) : items.map(p => (
               <tr key={p.id}>
                 <td><strong>{p.nombre}</strong></td>
                 <td className="text-muted">{p.codigo || p.codigoBarras || '—'}</td>
@@ -152,6 +187,14 @@ export default function Productos() {
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+        />
       </div>
 
       {/* Modal CRUD */}
