@@ -276,3 +276,17 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Charts Row 3: Métodos de Pago + Cajeros ──────────────── */
+.dashboard-charts-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-charts-2 {
+    grid-template-columns: 1fr;
+  }
+}
+

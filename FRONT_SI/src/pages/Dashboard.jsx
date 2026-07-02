@@ -66,16 +66,47 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filterType, setFilterType] = useState('30d'); // '7d', '30d', '2025', '2026', 'all', 'custom'
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const toast = useToast();
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  const getDateParams = (type, start, end) => {
+    const ahora = new Date();
+    let startDateStr = null;
+    let endDateStr = null;
 
-  const loadDashboard = async (isRefresh = false) => {
+    if (type === '7d') {
+      const d = new Date();
+      d.setDate(ahora.getDate() - 6);
+      startDateStr = d.toISOString().split('T')[0] + 'T00:00:00Z';
+      endDateStr = ahora.toISOString();
+    } else if (type === '30d') {
+      const d = new Date();
+      d.setDate(ahora.getDate() - 29);
+      startDateStr = d.toISOString().split('T')[0] + 'T00:00:00Z';
+      endDateStr = ahora.toISOString();
+    } else if (type === '2025') {
+      startDateStr = '2025-01-01T00:00:00Z';
+      endDateStr = '2025-12-31T23:59:59Z';
+    } else if (type === '2026') {
+      startDateStr = '2026-01-01T00:00:00Z';
+      endDateStr = '2026-12-31T23:59:59Z';
+    } else if (type === 'all') {
+      startDateStr = '2020-01-01T00:00:00Z';
+      endDateStr = ahora.toISOString();
+    } else if (type === 'custom') {
+      if (start) startDateStr = new Date(start + 'T00:00:00').toISOString();
+      if (end) endDateStr = new Date(end + 'T23:59:59').toISOString();
+    }
+
+    return { startDate: startDateStr, endDate: endDateStr };
+  };
+
+  const loadDashboard = async (params = {}, isRefresh = false) => {
     try {
       isRefresh ? setRefreshing(true) : setLoading(true);
-      const res = await api.get('/dashboard');
+      const res = await api.get('/dashboard', { params });
       setData(res.data);
     } catch (err) {
       toast.error('Error al cargar el dashboard');
@@ -85,14 +116,38 @@ export default function Dashboard() {
     }
   };
 
+  useEffect(() => {
+    const params = getDateParams(filterType, customStart, customEnd);
+    if (filterType !== 'custom' || (customStart && customEnd)) {
+      loadDashboard(params);
+    }
+  }, [filterType, customStart, customEnd]);
+
+  const getPeriodLabel = () => {
+    if (filterType === '7d') return 'Ventas (7 Días)';
+    if (filterType === '30d') return 'Ventas (30 Días)';
+    if (filterType === '2025') return 'Ventas del Período (Año 2025)';
+    if (filterType === '2026') return 'Ventas del Período (Año 2026)';
+    if (filterType === 'all') return 'Ventas del Histórico Completo';
+    return 'Ventas del Período Personalizado';
+  };
+
+  // ── Chart configs ─────────────────────────────────────────────────────────
+
   // ── Chart configs ─────────────────────────────────────────────────────────
 
   const lineChartData = data ? {
-    labels: data.ventas15Dias.map((d) => d.label),
+    labels: [
+      ...(data.ventas15Dias || []).map((d) => d.label),
+      ...(data.prediccionVentas || []).map((d) => d.label)
+    ],
     datasets: [
       {
-        label: 'Ventas',
-        data: data.ventas15Dias.map((d) => d.value),
+        label: 'Ventas Históricas',
+        data: [
+          ...(data.ventas15Dias || []).map((d) => d.value),
+          ...Array((data.prediccionVentas || []).length).fill(null)
+        ],
         fill: true,
         backgroundColor: (ctx) => {
           const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, 260);
@@ -105,10 +160,28 @@ export default function Dashboard() {
         pointBackgroundColor: '#ff3b30',
         pointBorderColor: '#1a1a1e',
         pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
+        pointRadius: (ctx) => (ctx.raw === null ? 0 : 4),
+        pointHoverRadius: (ctx) => (ctx.raw === null ? 0 : 6),
         tension: 0.4,
       },
+      {
+        label: 'Tendencia Proyectada (Predictibilidad)',
+        data: [
+          ...Array(Math.max(0, (data.ventas15Dias || []).length - 1)).fill(null),
+          (data.ventas15Dias || [])[(data.ventas15Dias || []).length - 1]?.value ?? null, // Conecta el último punto real
+          ...(data.prediccionVentas || []).map((d) => d.value)
+        ],
+        fill: false,
+        borderColor: '#f4b400',
+        borderWidth: 2.5,
+        borderDash: [6, 4],
+        pointBackgroundColor: '#f4b400',
+        pointBorderColor: '#1a1a1e',
+        pointBorderWidth: 2,
+        pointRadius: (ctx) => (ctx.raw === null ? 0 : 4),
+        pointHoverRadius: (ctx) => (ctx.raw === null ? 0 : 6),
+        tension: 0.4,
+      }
     ],
   } : null;
 
@@ -116,8 +189,21 @@ export default function Dashboard() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: false },
-      tooltip: CHART_TOOLTIP_OPTS,
+      legend: {
+        display: true,
+        position: 'top',
+        labels: {
+          color: '#9ca3af',
+          font: { size: 10 },
+          boxWidth: 10,
+        }
+      },
+      tooltip: {
+        ...CHART_TOOLTIP_OPTS,
+        callbacks: {
+          label: (ctx) => ` ${ctx.dataset.label}: $${Number(ctx.raw).toFixed(2)}`,
+        }
+      },
     },
     scales: {
       x: {
@@ -135,11 +221,11 @@ export default function Dashboard() {
   };
 
   const doughnutData = data ? {
-    labels: data.ventasPorCategoria.map((c) => c.label),
+    labels: (data.ventasPorCategoria || []).map((c) => c.label),
     datasets: [
       {
-        data: data.ventasPorCategoria.map((c) => c.value),
-        backgroundColor: data.ventasPorCategoria.map((c) => c.color || '#ff3b30'),
+        data: (data.ventasPorCategoria || []).map((c) => c.value),
+        backgroundColor: (data.ventasPorCategoria || []).map((c) => c.color || '#ff3b30'),
         borderColor: '#1a1a1e',
         borderWidth: 3,
         hoverOffset: 8,
@@ -166,12 +252,12 @@ export default function Dashboard() {
   };
 
   const barChartData = data ? {
-    labels: data.ventasPorMes.map((m) => m.label),
+    labels: (data.ventasPorMes || []).map((m) => m.label),
     datasets: [
       {
         label: 'Ventas',
-        data: data.ventasPorMes.map((m) => m.value),
-        backgroundColor: data.ventasPorMes.map((_, i, arr) =>
+        data: (data.ventasPorMes || []).map((m) => m.value),
+        backgroundColor: (data.ventasPorMes || []).map((_, i, arr) =>
           i === arr.length - 1 ? '#ff3b30' : 'rgba(255,59,48,0.4)'
         ),
         borderRadius: 8,
@@ -203,6 +289,75 @@ export default function Dashboard() {
     },
   };
 
+  const paymentMethodData = data ? {
+    labels: (data.ventasPorMetodoPago || []).map((m) => m.label),
+    datasets: [
+      {
+        data: (data.ventasPorMetodoPago || []).map((m) => m.value),
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'],
+        borderColor: '#1a1a1e',
+        borderWidth: 3,
+        hoverOffset: 8,
+      }
+    ]
+  } : null;
+
+  const paymentMethodOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '65%',
+    plugins: {
+      legend: {
+        position: 'right',
+        labels: {
+          color: '#9ca3af',
+          font: { size: 11 },
+          boxWidth: 12,
+          padding: 12,
+        }
+      },
+      tooltip: CHART_TOOLTIP_OPTS,
+    }
+  };
+
+  const workerSalesData = data ? {
+    labels: (data.ventasPorTrabajador || []).map((w) => w.label),
+    datasets: [
+      {
+        label: 'Total Ventas',
+        data: (data.ventasPorTrabajador || []).map((w) => w.value),
+        backgroundColor: 'rgba(34, 197, 94, 0.7)',
+        hoverBackgroundColor: '#22c55e',
+        borderRadius: 8,
+        borderSkipped: false,
+        borderColor: 'transparent',
+      }
+    ]
+  } : null;
+
+  const workerSalesOptions = {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: CHART_TOOLTIP_OPTS,
+    },
+    scales: {
+      x: {
+        grid: { color: GRID_COLOR },
+        ticks: { color: TICK_COLOR, font: { size: 10 }, callback: (v) => '$' + v },
+        border: { display: false },
+        beginAtZero: true,
+      },
+      y: {
+        grid: { display: false },
+        ticks: { color: TICK_COLOR, font: { size: 11 } },
+        border: { display: false },
+      }
+    }
+  };
+
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -231,12 +386,63 @@ export default function Dashboard() {
         </div>
         <button
           className="btn btn-secondary btn-sm"
-          onClick={() => loadDashboard(true)}
+          onClick={() => loadDashboard(getDateParams(filterType, customStart, customEnd), true)}
           disabled={refreshing}
         >
           <RefreshCw size={14} className={refreshing ? 'dash-spin' : ''} />
           {refreshing ? 'Actualizando…' : 'Actualizar'}
         </button>
+      </div>
+
+      {/* ── Barra de Filtros de Período de Análisis (Toma de Decisiones) ── */}
+      <div className="card mb-3" style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Filtro de Período:</span>
+          <select 
+            value={filterType} 
+            onChange={(e) => setFilterType(e.target.value)} 
+            className="form-control" 
+            style={{ width: 'auto', padding: '6px 12px', fontSize: '0.82rem', background: 'var(--bg-input)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)' }}
+          >
+            <option value="7d">Últimos 7 Días (Móviles)</option>
+            <option value="30d">Últimos 30 Días (Móviles)</option>
+            <option value="2025">Año 2025 (Datos de Demo/Seeding)</option>
+            <option value="2026">Año 2026 (Año Actual)</option>
+            <option value="all">Histórico Completo</option>
+            <option value="custom">Rango Personalizado...</option>
+          </select>
+        </div>
+
+        {filterType === 'custom' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, animation: 'fadeIn 0.2s ease' }}>
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className="form-control"
+              style={{ width: 'auto', padding: '4px 10px', fontSize: '0.8rem', background: 'var(--bg-input)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)' }}
+            />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>a</span>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className="form-control"
+              style={{ width: 'auto', padding: '4px 10px', fontSize: '0.8rem', background: 'var(--bg-input)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)' }}
+            />
+          </div>
+        )}
+
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+          Rango analizado:{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>
+            {(data.ventas15Dias || []).length > 0 ? (data.ventas15Dias || [])[0].label : 'N/A'}
+          </strong>{' '}
+          a{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>
+            {(data.ventas15Dias || []).length > 0 ? (data.ventas15Dias || [])[(data.ventas15Dias || []).length - 1].label : 'N/A'}
+          </strong>
+        </div>
       </div>
 
       {/* ── KPI Cards (8 cards) ── */}
@@ -251,7 +457,7 @@ export default function Dashboard() {
           bg="rgba(255,59,48,0.1)"
         />
         <StatCard
-          label="Ventas de la Semana"
+          label="Ventas (7 Días)"
           value={fmt(summary.ventasSemana)}
           sub={`${summary.transaccionesSemana} transacciones`}
           trend="up"
@@ -260,7 +466,7 @@ export default function Dashboard() {
           bg="rgba(59,130,246,0.1)"
         />
         <StatCard
-          label="Ventas del Mes"
+          label={getPeriodLabel()}
           value={fmt(summary.ventasMes)}
           sub={`${summary.transaccionesMes} transacciones`}
           trend="up"
@@ -357,12 +563,12 @@ export default function Dashboard() {
             <Trophy size={16} /> Top 5 Productos
           </h3>
           <div className="dash-top-list">
-            {data.topProductos.length === 0 ? (
+            {(data.topProductos || []).length === 0 ? (
               <p className="text-muted text-sm" style={{ textAlign: 'center', paddingTop: 24 }}>
                 Sin ventas registradas
               </p>
             ) : (
-              data.topProductos.map((p, i) => (
+              (data.topProductos || []).map((p, i) => (
                 <div key={p.id} className="dash-top-item">
                   <div
                     className="dash-top-rank"
@@ -392,14 +598,14 @@ export default function Dashboard() {
           <h3 className="chart-title" style={{ color: 'var(--yellow-400)' }}>
             <AlertTriangle size={16} /> Alertas de Stock Bajo
           </h3>
-          {data.alertasStock.length === 0 ? (
+          {(data.alertasStock || []).length === 0 ? (
             <div style={{ textAlign: 'center', padding: '32px 0', color: '#22c55e' }}>
               <Package size={32} style={{ marginBottom: 8 }} />
               <p className="text-sm">Stock en buen estado ✓</p>
             </div>
           ) : (
             <div className="dash-alert-list">
-              {data.alertasStock.map((p) => (
+              {(data.alertasStock || []).map((p) => (
                 <div
                   key={p.id}
                   className="dash-alert-item"
@@ -416,6 +622,41 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+      
+      {/* ── Charts Row 3: Métodos de Pago + Rendimiento Cajeros (Toma de Decisiones) ── */}
+      <div className="dashboard-charts-2 mb-3">
+        {/* Métodos de Pago */}
+        <div className="card chart-card">
+          <h3 className="chart-title">
+            <DollarSign size={16} /> Ventas por Método de Pago (Toma de Decisiones)
+          </h3>
+          <div className="chart-wrapper donut-wrapper">
+            {paymentMethodData && paymentMethodData.datasets[0].data.length > 0 ? (
+              <Doughnut data={paymentMethodData} options={paymentMethodOptions} />
+            ) : (
+              <p className="text-muted text-sm" style={{ textAlign: 'center', paddingTop: 60 }}>
+                Sin datos de ventas por método de pago
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Rendimiento por Cajero */}
+        <div className="card chart-card">
+          <h3 className="chart-title">
+            <UserCheck size={16} /> Ventas por Trabajador (Toma de Decisiones)
+          </h3>
+          <div className="chart-wrapper" style={{ height: 250 }}>
+            {workerSalesData && workerSalesData.datasets[0].data.length > 0 ? (
+              <Bar data={workerSalesData} options={workerSalesOptions} />
+            ) : (
+              <p className="text-muted text-sm" style={{ textAlign: 'center', paddingTop: 60 }}>
+                Sin datos de ventas por trabajador
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -444,14 +685,14 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {data.ultimasVentas.length === 0 ? (
+              {(data.ultimasVentas || []).length === 0 ? (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>
                     Sin ventas registradas
                   </td>
                 </tr>
               ) : (
-                data.ultimasVentas.map((v) => (
+                (data.ultimasVentas || []).map((v) => (
                   <tr key={v.id}>
                     <td>
                       <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>#{v.id}</span>

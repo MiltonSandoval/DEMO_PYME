@@ -64,6 +64,9 @@ namespace API_SI.DTOs.Dashboard
         public List<ChartPointDTO> Ventas15Dias { get; set; } = new();
         public List<ChartPointDTO> VentasPorCategoria { get; set; } = new();
         public List<ChartPointDTO> VentasPorMes { get; set; } = new();
+        public List<ChartPointDTO> PrediccionVentas { get; set; } = new();
+        public List<ChartPointDTO> VentasPorMetodoPago { get; set; } = new();
+        public List<ChartPointDTO> VentasPorTrabajador { get; set; } = new();
         public List<TopProductoDTO> TopProductos { get; set; } = new();
         public List<StockAlertDTO> AlertasStock { get; set; } = new();
         public List<UltimaVentaDTO> UltimasVentas { get; set; } = new();
